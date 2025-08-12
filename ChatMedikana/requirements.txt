@@ -1,0 +1,25 @@
+# Core App
+streamlit
+openai
+langchain
+langchain-community
+langchain-openai
+faiss-cpu
+pypdf
+python-docx
+python-pptx
+openpyxl
+pandas
+beautifulsoup4
+deep-translator
+tabulate
+
+# Google Drive Access
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+
+# Optional (used in some logic)
+tqdm
+regex
