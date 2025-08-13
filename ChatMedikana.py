@@ -23,10 +23,11 @@ from PIL import Image
 # Custom Retriever with Country Filtering
 from custom_retriever_class import CountryFilteredRetriever
 
-page_icon = Image.open("/Users/rome/Documents/Medikana/ChatMedikana/page_icon/Medikana v2-1.png")
-st.set_page_config(page_title="Medikana Knowledge Base", page_icon=page_icon, layout="wide")
+# Resolve this file's directory no matter where the app is launched from
+BASE_DIR = Path(__file__).resolve().parent
 
-PASSWORD = "medikana123!" # Change this securely later
+# Icon lives in the repo root next to ChatMedikana.py
+ICON_PATH = BASE_DIR / "Medikana v2-1.png"
 
 # Streamlit Session State
 if "state" not in st.session_state:
@@ -41,7 +42,7 @@ if st.session_state.state == 'Password':
     st.title("🔒 Medikana Knowledge Base")
     st.caption("Please enter the password to access the knowledge base.")
     auth_pass = st.text_input("🔒 Enter password to access", type="password")
-    if auth_pass != PASSWORD:
+    if auth_pass != st.secrets['PASSWORD']:
         st.stop()
     else:
         st.session_state.state = 'Authenticated'
@@ -49,9 +50,9 @@ if st.session_state.state == 'Password':
 
 # ---- CONFIG ----
 TAB_DATA = [] # List to hold metadata for tabular data
-DATA_FOLDER = "test_files"
-INDEX_PATH = "faiss_index"
-OPENAI_API_KEY = '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'  # Load from environment variables
+# DATA_FOLDER = BASE_DIR / "test_files"
+INDEX_PATH = BASE_DIR / "faiss_index"
+OPENAI_API_KEY = st.secrets['OPENAI']
 
 # ---- Define English QA/Condense Prompt ----
 def english_qa_prompt():
@@ -117,7 +118,7 @@ def load_vector_db():
     Pulls the Vector DB from the local 'faiss_index' folder. Have to be keep updated with new files.
     """
     if not Path(INDEX_PATH).exists():
-        st.warning("Vector DB not found. Please run the indexing script first.")
+        st.warning("Vector DB not found. Please run make_faiss_db.py script first.")
         return None
     embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
     try:
