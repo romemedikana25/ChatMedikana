@@ -1,4 +1,4 @@
-# Core App
+# --- Core App ---
 streamlit
 openai
 langchain
@@ -13,13 +13,21 @@ pandas
 beautifulsoup4
 deep-translator
 tabulate
+tqdm
+regex
+Pillow
 
-# Google Drive Access
+# --- Google Drive API Access ---
 google-api-python-client
 google-auth
 google-auth-httplib2
 google-auth-oauthlib
 
-# Optional (used in some logic)
-tqdm
-regex
+# --- Utilities & Indexing ---
+python-dotenv
+rank-bm25
+python-dateutil
+
+# --- Text & File Handling ---
+unstructured
+pdfminer.six
