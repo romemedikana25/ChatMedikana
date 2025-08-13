@@ -25,6 +25,7 @@ from langchain_community.vectorstores import FAISS
 # Import Google Drive Helpers
 from folder_utils import get_folder_id_by_name, download_file
 from drive_utils import get_drive_service
+from google.oauth2.credentials import Credentials
 
 RUN_SYNC = True
 
@@ -39,7 +40,7 @@ if RUN_SYNC:
 # ---- CONFIG ----
 DATA_FOLDER = "test_files"  # Local folder for your test files
 TAB_DATA = []
-OPENAI_API_KEY = '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'  # Load from environment variables
+OPENAI_API_KEY = st.secrets['OPENAI']
 
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY not found. Please set it using `export OPENAI_API_KEY=your_key`.")
