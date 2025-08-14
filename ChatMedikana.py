@@ -7,6 +7,7 @@ from google.oauth2 import service_account
 from googleapiclient.http import MediaIoBaseDownload
 import io
 from datetime import datetime, timezone
+from drive_utils import get_drive_service
 
 # AI Imports #
 from langchain_community.vectorstores import FAISS
@@ -29,9 +30,6 @@ from PIL import Image
 
 # Custom Retriever with Country Filtering
 from custom_retriever_class import CountryFilteredRetriever
-
-# Resolve this file's directory no matter where the app is launched from
-BASE_DIR = Path(__file__).resolve().parent
 
 # Icon lives in the repo root next to ChatMedikana.py
 ICON_PATH = BASE_DIR / "Medikana v2-1.png"
@@ -57,9 +55,11 @@ if st.session_state.state == 'Password':
 
 # ---- CONFIG ----
 TAB_DATA = [] # List to hold metadata for tabular data
-# DATA_FOLDER = BASE_DIR / "test_files"
-INDEX_PATH = BASE_DIR / "faiss_index"
 OPENAI_API_KEY = st.secrets['OPENAI']
+
+# REQUIRED: put these in Streamlit secrets or hardcode (IDs are best; names are ambiguous)
+SHARED_DRIVE_ID   = st.secrets.get("SHARED_DRIVE_ID", "")        # e.g. "0AAbcDEF...PVA"
+INDEX_FOLDER_ID   = st.secrets.get("INDEX_FOLDER_ID", "")        # ID of the *faiss_index* folder in Driv
 
 # ---- Define English QA/Condense Prompt ----
 def english_qa_prompt():
