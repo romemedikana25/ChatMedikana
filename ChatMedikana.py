@@ -28,6 +28,7 @@ import os
 import time
 from PIL import Image
 import tempfile
+import json
 
 # Custom Retriever with Country Filtering
 from custom_retriever_class import CountryFilteredRetriever
