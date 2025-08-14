@@ -191,7 +191,7 @@ def load_vector_db():
 def _find_tables_json(service) -> str | None:
     """Find tables_catalog.json inside the Table Catalog folder."""
     resp = service.files().list(
-        q=f"'{TABLE_CATALOG_FOLDER_ID}' in parents and trashed=false and name='tables_catalog.json'",
+        q=f"'{TABLE_CATALOG_ID}' in parents and trashed=false and name='tables_catalog.json'",
         corpora="drive",
         driveId=SHARED_DRIVE_ID,
         includeItemsFromAllDrives=True,
@@ -225,7 +225,7 @@ def load_table_catalog() -> list[dict]:
     """
     svc = get_drive_service()
 
-    file_id = TABLES_JSON_FILE_ID or _find_tables_json(svc)
+    file_id = TABLES_CATALOG_ID or _find_tables_json(svc)
     if not file_id:
         st.warning("tables_catalog.json not found in Table Catalog folder.")
         return []
