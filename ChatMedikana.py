@@ -54,12 +54,13 @@ if st.session_state.state == 'Password':
         st.rerun()
 
 # ---- CONFIG ----
-TAB_DATA = [] # List to hold metadata for tabular data
 OPENAI_API_KEY = st.secrets['OPENAI']
 
 # REQUIRED: put these in Streamlit secrets or hardcode (IDs are best; names are ambiguous)
 SHARED_DRIVE_ID   = st.secrets.get("SHARED_DRIVE_ID", "")        # e.g. "0AAbcDEF...PVA"
-INDEX_FOLDER_ID   = st.secrets.get("INDEX_FOLDER_ID", "")        # ID of the *faiss_index* folder in Driv
+INDEX_FOLDER_ID   = st.secrets.get("INDEX_FOLDER_ID", "")        # ID of the *faiss_index* folder in Drive
+KB_FOLDER_ID      = st.secrets["KB_FOLDER_ID"]                   # name of kb folder
+TABLE_CATALOG_ID  = st.secrets["TABLE_CATALOG_ID"]               # get the table catlog folder id
 
 # ---- Define English QA/Condense Prompt ----
 def english_qa_prompt():
@@ -134,29 +135,52 @@ def load_vector_db():
     except Exception as e:
         st.error(f"Failed to load vector DB: {e}")
         return None
-    
-# ----- TABLE CATALOG -----
-@st.cache_resource(show_spinner="Indexing tables…")
-def build_table_catalog(folder_path=DATA_FOLDER):
-    """ Scan the data folder for tabular files and build a catalog with metadata. """
-    for filepath in Path(folder_path).rglob("*"):
-        if filepath.suffix.lower() in [".xlsx", ".xls", ".csv"]:
-            try:
-                if filepath.suffix.lower() in [".xlsx", ".xls"]:
-                    df = pd.read_excel(filepath, nrows=5, engine="openpyxl")
-                else:
-                    df = pd.read_csv(filepath, nrows=5)
 
-                description = f'Table from file {filepath.name} with columns: {", ".join(df.columns)}'
-                preview = df.head(3).to_csv(index=False) # First 3 rows as preview
+# ---- Table Catalog -----
+def _find_tables_json(service) -> str | None:
+    """Find tables_catalog.json inside the Table Catalog folder."""
+    resp = service.files().list(
+        q=f"'{TABLE_CATALOG_FOLDER_ID}' in parents and trashed=false and name='tables_catalog.json'",
+        corpora="drive",
+        driveId=SHARED_DRIVE_ID,
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        fields="files(id,name)",
+        pageSize=1,
+    ).execute()
+    items = resp.get("files", [])
+    return items[0]["id"] if items else None
 
-                TAB_DATA.append({
-                    "file_path": str(filepath),
-                    "description": description,
-                    "preview": preview
-                })
-            except Exception as e:
-                print(f"Error reading table {filepath}: {e}")
+def _download_file_bytes(service, file_id: str) -> bytes:
+    # download function to get json efficiently
+    req = service.files().get_media(fileId=file_id)
+    buf = io.BytesIO()
+    dl = MediaIoBaseDownload(buf, req)
+    done = False
+    while not done:
+        _, done = dl.next_chunk()
+    return buf.getvalue()
+
+@st.cache_data(show_spinner="Loading table catalog…")
+def load_table_catalog() -> list[dict]:
+    """
+    Loads the prebuilt catalog JSON from the 'Table Catalog' folder on the Shared Drive.
+    Returns a list of dicts like:
+    {
+      "file_id": ..., "file_name": ..., "mimeType": ...,
+      "modifiedTime": ..., "path": ...,
+      "description": ..., "preview": ...
+    }
+    """
+    svc = get_drive_service()
+
+    file_id = TABLES_JSON_FILE_ID or _find_tables_json(svc)
+    if not file_id:
+        st.warning("tables_catalog.json not found in Table Catalog folder.")
+        return []
+
+    data = json.loads(_download_file_bytes(svc, file_id).decode("utf-8"))
+    return data.get("tables", [])
 
 # ---- Table Selection ----
 def choose_table_for_query(query):
@@ -242,29 +266,6 @@ def build_crc(db, country):
         combine_docs_chain_kwargs={"prompt": english_qa_prompt()},
         return_generated_question=True,
     )
-    
-# ---- Query Knowledge Base ----
-# def query_knowledge_base(query, db):
-#     """
-#     Query the knowledge base for relevant information.
-#     If the query is related to tabular data, handle it separately in handle_tabular_query function.
-#     Else use vector-based search.
-#     """
-#     if is_table_or_numerical_query(query):
-#         table_path = choose_table_for_query(query)
-#         if table_path:
-#             table_response, table_sources = handle_tabular_query(query, table_path)
-#             return table_response, table_sources
-        
-#     # Fallback to vector-based search
-#     retriever = db.as_retriever(search_type='mmr', search_kwargs={"k": 6, 'fetch_k': 20, "lambda_mult": 0.5})
-#     qa = RetrievalQA.from_chain_type(
-#         llm=ChatOpenAI(model="gpt-4o-mini", api_key=OPENAI_API_KEY, temperature=0),
-#         retriever=retriever,
-#         return_source_documents=True
-#     )
-#     response = qa.invoke({"query": query})
-#     return response["result"], response["source_documents"]
 
 # ---- Streamlit UI ----
 
@@ -280,6 +281,8 @@ if st.session_state.state == 'Authenticated':
         st.stop()
     build_table_catalog()
     # chain = build_crc(db)
+
+    TAB_DATA = load_table_catalog()
 
     # Sidebar controls
     with st.sidebar:
