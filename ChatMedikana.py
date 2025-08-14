@@ -67,6 +67,7 @@ SHARED_DRIVE_ID   = st.secrets["SHARED_DRIVE_ID"]        # e.g. "0AAbcDEF...PVA"
 INDEX_FOLDER_ID   = st.secrets["INDEX_FOLDER_ID"]        # ID of the *faiss_index* folder in Drive
 KB_FOLDER_ID      = st.secrets["KB_FOLDER_ID"]                   # name of kb folder
 TABLE_CATALOG_ID  = st.secrets["TABLE_CATALOG_ID"]               # get the table catlog folder id
+JSON_FILE_ID      = st.secrets["JSON_FILE_ID"]
 
 # ---- Define English QA/Condense Prompt ----
 def english_qa_prompt():
@@ -189,9 +190,11 @@ def load_vector_db():
 
 # ---- Table Catalog -----
 def _find_tables_json(service) -> str | None:
-    """Find tables_catalog.json inside the Table Catalog folder."""
+    """Find the file id for 'tables_catalog.json' inside the Table Catalog folder."""
+    if not (SHARED_DRIVE_ID and TABLE_CATALOG_FOLDER_ID):
+        return None
     resp = service.files().list(
-        q=f"'{TABLE_CATALOG_ID}' in parents and trashed=false and name='tables_catalog.json'",
+        q=f"'{TABLE_CATALOG_FOLDER_ID}' in parents and trashed=false and name='tables_catalog.json'",
         corpora="drive",
         driveId=SHARED_DRIVE_ID,
         includeItemsFromAllDrives=True,
@@ -203,7 +206,6 @@ def _find_tables_json(service) -> str | None:
     return items[0]["id"] if items else None
 
 def _download_file_bytes(service, file_id: str) -> bytes:
-    # download function to get json efficiently
     req = service.files().get_media(fileId=file_id)
     buf = io.BytesIO()
     dl = MediaIoBaseDownload(buf, req)
@@ -215,22 +217,18 @@ def _download_file_bytes(service, file_id: str) -> bytes:
 @st.cache_data(show_spinner="Loading table catalog…")
 def load_table_catalog() -> list[dict]:
     """
-    Loads the prebuilt catalog JSON from the 'Table Catalog' folder on the Shared Drive.
-    Returns a list of dicts like:
-    {
-      "file_id": ..., "file_name": ..., "mimeType": ...,
-      "modifiedTime": ..., "path": ...,
-      "description": ..., "preview": ...
-    }
+    Load the prebuilt tables_catalog.json from Drive.
+    Prefers TABLES_JSON_FILE_ID; otherwise, discovers it in TABLE_CATALOG_FOLDER_ID.
     """
     svc = get_drive_service()
 
-    file_id = TABLE_CATALOG_ID or _find_tables_json(svc)
-    if not file_id:
-        st.warning("tables_catalog.json not found in Table Catalog folder.")
+    # prefer direct file id if present; else discover by folder
+    tables_file_id = TABLES_JSON_FILE_ID or _find_tables_json(svc)
+    if not tables_file_id:
+        st.warning("Could not locate 'tables_catalog.json'. Provide TABLES_JSON_FILE_ID or TABLE_CATALOG_FOLDER_ID in secrets.")
         return []
 
-    data = json.loads(_download_file_bytes(svc, file_id).decode("utf-8"))
+    data = json.loads(_download_file_bytes(svc, tables_file_id).decode("utf-8"))
     return data.get("tables", [])
 
 # ---- Table Selection ----
