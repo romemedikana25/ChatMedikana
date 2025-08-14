@@ -31,6 +31,8 @@ from PIL import Image
 # Custom Retriever with Country Filtering
 from custom_retriever_class import CountryFilteredRetriever
 
+BASE_DIR = Path(__file__).resolve().parent
+
 # Icon lives in the repo root next to ChatMedikana.py
 ICON_PATH = BASE_DIR / "Medikana v2-1.png"
 
