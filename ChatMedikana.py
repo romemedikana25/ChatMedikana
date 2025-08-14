@@ -330,8 +330,6 @@ if st.session_state.state == 'Authenticated':
     if not db:
         st.error("Failed to load vector database. Please check the logs.")
         st.stop()
-    build_table_catalog()
-    # chain = build_crc(db)
 
     TAB_DATA = load_table_catalog()
 
