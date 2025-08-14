@@ -223,9 +223,9 @@ def load_table_catalog() -> list[dict]:
     svc = get_drive_service()
 
     # prefer direct file id if present; else discover by folder
-    tables_file_id = TABLES_JSON_FILE_ID or _find_tables_json(svc)
+    tables_file_id = JSON_FILE_ID or _find_tables_json(svc)
     if not tables_file_id:
-        st.warning("Could not locate 'tables_catalog.json'. Provide TABLES_JSON_FILE_ID or TABLE_CATALOG_FOLDER_ID in secrets.")
+        st.warning("Could not locate 'tables_catalog.json'. Provide JSON_FILE_ID or TABLE_CATALOG_FOLDER_ID in secrets.")
         return []
 
     data = json.loads(_download_file_bytes(svc, tables_file_id).decode("utf-8"))
