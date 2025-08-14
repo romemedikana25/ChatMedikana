@@ -59,8 +59,8 @@ if st.session_state.state == 'Password':
 OPENAI_API_KEY = st.secrets['OPENAI']
 
 # REQUIRED: put these in Streamlit secrets or hardcode (IDs are best; names are ambiguous)
-SHARED_DRIVE_ID   = st.secrets.get("SHARED_DRIVE_ID", "")        # e.g. "0AAbcDEF...PVA"
-INDEX_FOLDER_ID   = st.secrets.get("INDEX_FOLDER_ID", "")        # ID of the *faiss_index* folder in Drive
+SHARED_DRIVE_ID   = st.secrets["SHARED_DRIVE_ID"]        # e.g. "0AAbcDEF...PVA"
+INDEX_FOLDER_ID   = st.secrets["INDEX_FOLDER_ID"]        # ID of the *faiss_index* folder in Drive
 KB_FOLDER_ID      = st.secrets["KB_FOLDER_ID"]                   # name of kb folder
 TABLE_CATALOG_ID  = st.secrets["TABLE_CATALOG_ID"]               # get the table catlog folder id
 
