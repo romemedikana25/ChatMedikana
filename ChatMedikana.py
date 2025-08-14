@@ -225,7 +225,7 @@ def load_table_catalog() -> list[dict]:
     """
     svc = get_drive_service()
 
-    file_id = TABLES_CATALOG_ID or _find_tables_json(svc)
+    file_id = TABLE_CATALOG_ID or _find_tables_json(svc)
     if not file_id:
         st.warning("tables_catalog.json not found in Table Catalog folder.")
         return []
