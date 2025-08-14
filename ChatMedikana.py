@@ -1,6 +1,13 @@
 # User Interface Imports #
 import streamlit as st
 
+# ---- Google Drive Sync (FAISS) ----
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+from googleapiclient.http import MediaIoBaseDownload
+import io
+from datetime import datetime, timezone
+
 # AI Imports #
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
