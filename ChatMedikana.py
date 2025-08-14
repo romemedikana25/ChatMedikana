@@ -144,7 +144,7 @@ def load_vector_db():
     Sync index.faiss/index.pkl from Drive INDEX_FOLDER_ID → local INDEX_PATH, then load FAISS.
     """
     # 1) Find the two index files in Drive
-    svc = _drive_service_readonly()
+    svc = get_drive_service()
     remote = _list_index_files(svc)
     required = {"index.faiss", "index.pkl"}
     if not required.issubset(remote.keys()):
