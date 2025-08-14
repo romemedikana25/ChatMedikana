@@ -119,21 +119,66 @@ def clarifier_prompt():
     )
 
 # ---- Load or Create FAISS DB ----
+def _list_index_files(service):
+    """List files inside the Drive index folder and return mapping of name -> file metadata."""
+    resp = service.files().list(
+        q=f"'{INDEX_FOLDER_ID}' in parents and trashed=false",
+        corpora="drive",
+        driveId=SHARED_DRIVE_ID,
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        fields="files(id,name,mimeType,modifiedTime,size)"
+    ).execute()
+    files = resp.get("files", [])
+    return {f["name"]: f for f in files}
+
+def _parse_z(dt_str):
+    # '2025-08-10T12:34:56.000Z' -> aware datetime
+    return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+
 @st.cache_resource(show_spinner="Loading vector DB...")
 def load_vector_db():
-    """ 
-    Load existing FAISS Vector DBor create a new one if it doesn't exist. 
-    Pulls the Vector DB from the local 'faiss_index' folder. Have to be keep updated with new files.
     """
-    if not Path(INDEX_PATH).exists():
-        st.warning("Vector DB not found. Please run make_faiss_db.py script first.")
+    Sync index.faiss/index.pkl from Drive INDEX_FOLDER_ID → local INDEX_PATH, then load FAISS.
+    """
+    # 1) Find the two index files in Drive
+    svc = _drive_service_readonly()
+    remote = _list_index_files(svc)
+    required = {"index.faiss", "index.pkl"}
+    if not required.issubset(remote.keys()):
+        st.error("Drive index folder is missing index.faiss and/or index.pkl. Rebuild the index first.")
         return None
-    embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
+
+    # make local storage for files in streamlit
+    INDEX_PATH.mkdir(parents=True, exist_ok=True)
+    local_faiss = INDEX_PATH / "index.faiss"
+    local_pkl   = INDEX_PATH / "index.pkl"
+
+    def _download_to(path: Path, file_id: str):
+        req = svc.files().get_media(fileId=file_id)
+        buf = io.BytesIO()
+        dl = MediaIoBaseDownload(buf, req)
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+        path.write_bytes(buf.getvalue())
+
+    # Always download from Drive
+    _download_to(local_faiss, remote["index.faiss"]["id"])
+    _download_to(local_pkl,   remote["index.pkl"]["id"])
+    st.info("Downloaded FAISS index from Drive.")
+
+    embeddings = OpenAIEmbeddings(
+        api_key=OPENAI_API_KEY,
+        model="text-embedding-3-small",  # ensure matches what you built with
+    )
+
     try:
+        # makes instance of FAISS DB for similarity search
         db = FAISS.load_local(INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
         return db
     except Exception as e:
-        st.error(f"Failed to load vector DB: {e}")
+        st.error(f"Failed to load FAISS index: {e}")
         return None
 
 # ---- Table Catalog -----
