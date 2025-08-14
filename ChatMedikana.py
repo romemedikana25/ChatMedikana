@@ -27,6 +27,7 @@ from pathlib import Path
 import os
 import time
 from PIL import Image
+import tempfile
 
 # Custom Retriever with Country Filtering
 from custom_retriever_class import CountryFilteredRetriever
@@ -35,6 +36,9 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Icon lives in the repo root next to ChatMedikana.py
 ICON_PATH = BASE_DIR / "Medikana v2-1.png"
+
+# Put FAISS cache in the OS temp dir (works locally & on Streamlit Cloud)
+INDEX_PATH = Path(tempfile.gettempdir()) / "chatmedikana_faiss_index"
 
 # Streamlit Session State
 if "state" not in st.session_state:
