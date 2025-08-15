@@ -14,6 +14,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import ConversationalRetrievalChain, LLMChain
 from langchain.prompts import PromptTemplate
+try:
+    from langchain.schema import Document
+except ImportError:
+    from langchain_core.documents import Document
 
 # Data Handling Imports #
 import pandas as pd
