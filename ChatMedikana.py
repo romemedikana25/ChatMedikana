@@ -277,28 +277,43 @@ def choose_table_for_query(query: str) -> dict | None:
 # If you already have these constants, reuse them:
 MT_GSHEET = "application/vnd.google-apps.spreadsheet"
 
+@st.cache_data(show_spinner=False)
+def export_gsheet_csv(file_id: str) -> bytes:
+    """Export a Google Sheet to CSV bytes."""
+    svc = get_drive_service()
+    req = svc.files().export_media(fileId=file_id, mimeType="text/csv")
+    buf = io.BytesIO()
+    dl = MediaIoBaseDownload(buf, req)
+    done = False
+    while not done:
+        _, done = dl.next_chunk()
+    return buf.getvalue()
+
+@st.cache_data(show_spinner=False)
+def download_bytes(file_id: str) -> bytes:
+    """Download any Drive file's raw bytes using helper from before."""
+    # You already have _download_file_bytes(service, file_id); reuse it:
+    svc = get_drive_service()
+    return _download_file_bytes(svc, file_id)
+
 def table_entry_to_dataframe(table: dict) -> pd.DataFrame:
-    """
-    Resolve a catalog entry to a pandas DataFrame by fetching bytes from Drive.
-    Uses your existing export/download helpers.
-    """
     file_id   = table["file_id"]
     file_name = table.get("file_name", "")
-    mime_type = table.get("mimeType", "") # gets type for gsheet specifically
-    ext = Path(file_name).suffix.lower() # reads file type
+    mime_type = table.get("mimeType", "")
+    ext = Path(file_name).suffix.lower()
 
     if mime_type == MT_GSHEET:
-        raw = export_gsheet_csv(file_id)                 # returns CSV bytes
+        raw = export_gsheet_csv(file_id)  # CSV bytes from Drive
         return pd.read_csv(io.BytesIO(raw), engine="python")
     else:
-        raw = download_bytes(file_id)                    # returns file bytes
+        raw = download_bytes(file_id)     # raw file bytes from Drive
         if ext == ".csv":
             return pd.read_csv(io.BytesIO(raw), engine="python", encoding="utf-8-sig")
         elif ext in (".xlsx", ".xls"):
             return pd.read_excel(io.BytesIO(raw), engine="openpyxl")
         else:
             raise ValueError(f"Unsupported table type: {mime_type} / {ext}")
-
+            
 # ---- Handle Table Query ----
 def handle_tabular_query(query: str, table_entry: dict):
     """
@@ -427,18 +442,20 @@ if st.session_state.state == 'Authenticated':
 
         # 1) Table intent path (bypass retrieval)
         if is_table_or_numerical_query(user_prompt):
-            table_fp = choose_table_for_query(user_prompt) # choose table for query
-            if table_fp:
-                answer, table_sources = handle_tabular_query(user_prompt, table_fp) # handles tabular queries
+            table_entry = choose_table_for_query(user_prompt)
+            if table_entry:
+                answer, table_sources = handle_tabular_query(user_prompt, table_entry)
                 with st.chat_message("assistant"):
                     st.markdown(answer)
                     if table_sources:
                         with st.expander("📎 Sources", expanded=False):
-                            for i, p in enumerate(table_sources, 1):
-                                st.markdown(f"**{i}.** `{p.name}`")
-                                st.caption(f"Path: `{str(p)}`")
+                            for i, meta in enumerate(table_sources, 1):
+                                st.markdown(f"**{i}.** `{meta.get('file_name')}`")
+                                st.caption(
+                                    f"Path: `{meta.get('file_path')}` · Last Modified: {meta.get('last_modified', 'Unknown')}"
+                                )
                 # update memory
-                st.session_state.chat_history.append((user_prompt, answer)) 
+                st.session_state.chat_history.append((user_prompt, answer))
                 st.session_state.messages.append(
                     {"role": "assistant", "content": answer, "sources": table_sources}
                 )
