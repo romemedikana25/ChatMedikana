@@ -147,7 +147,7 @@ def _parse_z(dt_str):
     return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
 
 @st.cache_resource(show_spinner="Loading vector DB...")
-def load_vector_db():
+def load_vector_db(openai_key: str):
     """
     Sync index.faiss/index.pkl from Drive INDEX_FOLDER_ID → local INDEX_PATH, then load FAISS.
     """
@@ -179,9 +179,16 @@ def load_vector_db():
     st.info("Downloaded FAISS index from Drive.")
 
     embeddings = OpenAIEmbeddings(
-        api_key=OPENAI_API_KEY,
+        api_key=openai_key,
         model="text-embedding-3-small",  # ensure matches what you built with
     )
+
+    # Fail fast: prove the key actually works *before* loading FAISS.
+    try:
+        _ = embeddings.embed_query("ping")
+    except Exception as e:
+        st.error("❌ OpenAI embeddings auth failed. Check `OPENAI_API_KEY` in Streamlit secrets (no quotes) and project access.")
+        raise
 
     try:
         # makes instance of FAISS DB for similarity search
@@ -327,7 +334,7 @@ if st.session_state.state == 'Authenticated':
     st.caption("Ask questions about regulatory docs and get answers with context.")
 
     # Load DB
-    db = load_vector_db()
+    db = load_vector_db(OPENAI_API_KEY)
     if not db:
         st.error("Failed to load vector database. Please check the logs.")
         st.stop()
