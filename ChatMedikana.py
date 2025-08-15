@@ -242,36 +242,75 @@ def load_table_catalog() -> list[dict]:
     return data.get("tables", [])
 
 # ---- Table Selection ----
-def choose_table_for_query(query):
+def choose_table_for_query(query: str) -> dict | None:
     """
-    Choose the most relevant table for a given query using vector similarity search.
-    Returns the file path of the best matching table.
+    Vector-search over table descriptions/previews and return the best table entry (dict).
+    Expects catalog schema:
+      {"file_id","file_name","mimeType","modifiedTime","path","description","preview"}
     """
     if not TAB_DATA:
         return None
 
-    table_texts = [f"{t['description']}\nPreview:\n{t['preview']}" for t in TAB_DATA]
-    embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
-    vector_db = FAISS.from_texts(table_texts, embeddings)
+    docs = []
+    for i, t in enumerate(TAB_DATA):
+        desc = t.get("description", "")
+        prev = t.get("preview", "")
+        docs.append(Document(page_content=f"{desc}\nPreview:\n{prev}", metadata={"i": i}))
 
-    docs = vector_db.similarity_search(query, k=1)
-    best_match = docs[0].page_content if docs else None
+    embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY, model="text-embedding-3-small")
+    vector_db = FAISS.from_documents(docs, embeddings)
 
-    for table in TAB_DATA:
-        if table['description'] in best_match:
-            return table['file_path']
-    return None
+    hits = vector_db.similarity_search(query, k=1)
+    if not hits:
+        return None
+
+    idx = hits[0].metadata.get("i")
+    if idx is None or idx >= len(TAB_DATA):
+        return None
+
+    return TAB_DATA[idx]  # return the catalog entry itself
+
+# If you already have these constants, reuse them:
+MT_GSHEET = "application/vnd.google-apps.spreadsheet"
+
+def table_entry_to_dataframe(table: dict) -> pd.DataFrame:
+    """
+    Resolve a catalog entry to a pandas DataFrame by fetching bytes from Drive.
+    Uses your existing export/download helpers.
+    """
+    file_id   = table["file_id"]
+    file_name = table.get("file_name", "")
+    mime_type = table.get("mimeType", "") # gets type for gsheet specifically
+    ext = Path(file_name).suffix.lower() # reads file type
+
+    if mime_type == MT_GSHEET:
+        raw = export_gsheet_csv(file_id)                 # returns CSV bytes
+        return pd.read_csv(io.BytesIO(raw), engine="python")
+    else:
+        raw = download_bytes(file_id)                    # returns file bytes
+        if ext == ".csv":
+            return pd.read_csv(io.BytesIO(raw), engine="python", encoding="utf-8-sig")
+        elif ext in (".xlsx", ".xls"):
+            return pd.read_excel(io.BytesIO(raw), engine="openpyxl")
+        else:
+            raise ValueError(f"Unsupported table type: {mime_type} / {ext}")
 
 # ---- Handle Table Query ----
-def handle_tabular_query(query: str, table_path: str):
-    """ 
-    Handle a query that requires table data.
-    Uses LLM to answer questions based on the provided table.
+def handle_tabular_query(query: str, table_entry: dict):
+    """
+    Handle a table question by pulling the file from Drive and answering using only that table.
     """
     try:
-        df = pd.read_excel(table_path, engine="openpyxl") if table_path.endswith('.xlsx') else pd.read_csv(table_path)
+        df = table_entry_to_dataframe(table_entry) # try to make df from helper
     except Exception as e:
         return f"Error reading table: {e}", None
+
+    if df.empty:
+        return "The selected table appears to be empty.", [{
+            "file_name": table_entry.get("file_name"),
+            "file_path": table_entry.get("path"),
+            "last_modified": table_entry.get("modifiedTime"),
+        }]
 
     markdown_table = df.to_markdown(index=False)
 
@@ -282,22 +321,29 @@ def handle_tabular_query(query: str, table_path: str):
         Here is the table:
         {table}
 
-        Answer the following question using only the data from the table:
+        Answer the following question using only the data from the table.
 
         Question: {query}
 
-        If the answer is a count, provide the exact number.
-        If the answer is a list, list the items clearly.
-        If numeric calculations are needed, compute them directly.
-        If unsure, say \"I cannot answer from this table.\
-        Respond in English only."
+        - If the answer is a count, provide the exact number.
+        - If the answer is a list, list the items clearly.
+        - If numeric calculations are needed, compute them directly.
+        - If unsure, say "I cannot answer from this table."
+        Respond in English only.
         """
     )
 
     llm = ChatOpenAI(model="gpt-4o-mini", api_key=OPENAI_API_KEY, temperature=0)
     chain = LLMChain(llm=llm, prompt=prompt)
     response = chain.invoke({"query": query, "table": markdown_table})
-    return response["text"].strip(), [Path(table_path)]
+
+    # Return metadata dict (your UI already supports dict sources)
+    src = [{
+        "file_name": table_entry.get("file_name"),
+        "file_path": table_entry.get("path"),           # the Drive UI path-like, for display only
+        "last_modified": table_entry.get("modifiedTime"),
+    }]
+    return response["text"].strip(), src
 
 # ---- Build Conversational Chain (with memory) ----
 def build_crc(db, country):
