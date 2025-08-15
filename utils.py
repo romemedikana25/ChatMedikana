@@ -109,14 +109,42 @@ def extract_country_from_query(query):
 
 
 # ---- Intent Detection for Table Queries ----
-def is_table_or_numerical_query(query):
-    table_keywords = [
-        "spreadsheet", "excel", "csv", "dataframe",
-        "columns", "rows", "numeric", "numerical", "quantitative",
-        "mean", "median", "average", "sum", "count", "total",
-        "filter", "sort", "maximum", "minimum"
-    ]
-    return any(keyword in query.lower() for keyword in table_keywords)
+# def is_table_or_numerical_query(query):
+#     table_keywords = [
+#         "spreadsheet", "excel", "csv", "dataframe",
+#         "columns", "rows", "numeric", "numerical", "quantitative",
+#         "mean", "median", "average", "sum", "count", "total",
+#         "filter", "sort", "maximum", "minimum"
+#     ]
+#     return any(keyword in query.lower() for keyword in table_keywords)
+
+
+TABLE_HINTS_RE = re.compile(
+    r"\b(spreadsheet|excel|csv|sheet|table|dataframe|pivot|columns?|rows?|filter|sort)\b",
+    flags=re.IGNORECASE,
+)
+
+NUMERIC_OPS_RE = re.compile(
+    r"\b(mean|median|average|avg|sum|count|total|max(?:imum)?|min(?:imum)?)\b",
+    flags=re.IGNORECASE,
+)
+
+AUX_NUMERIC_CUES_RE = re.compile(
+    r"\b(per|by|group(?:ed)?|breakdown|distribution|over time)\b|\d",
+    flags=re.IGNORECASE,
+)
+
+def is_table_or_numerical_query(query: str) -> bool:
+    q = query.strip()
+    if not q:
+        return False
+    # 1) Explicit tabular hints → true
+    if TABLE_HINTS_RE.search(q):
+        return True
+    # 2) Numeric ops must be standalone words AND accompanied by a numeric cue
+    if NUMERIC_OPS_RE.search(q) and AUX_NUMERIC_CUES_RE.search(q):
+        return True
+    return False
 
 
 
