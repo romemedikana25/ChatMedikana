@@ -61,7 +61,9 @@ if st.session_state.state == 'Password':
         st.rerun()
 
 # ---- CONFIG ----
-OPENAI_API_KEY = st.secrets['OPENAI']
+from config import get_openai_key, mask
+OPENAI_API_KEY = get_openai_key()
+st.caption(f"🔑 OpenAI key loaded: {mask(OPENAI_API_KEY)}")
 
 # REQUIRED: put these in Streamlit secrets or hardcode (IDs are best; names are ambiguous)
 SHARED_DRIVE_ID   = st.secrets["SHARED_DRIVE_ID"]        # e.g. "0AAbcDEF...PVA"
